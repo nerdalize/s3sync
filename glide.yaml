@@ -1,0 +1,6 @@
+package: github.com/advanderveer/s3sync
+import:
+- package: github.com/restic/chunker                  #content-based chunking
+  version: 50428e727f50c16e1bcb3050209fc2758427a6af
+- package: github.com/smartystreets/go-aws-auth       #sign aws http requests
+  version: 2043e6d0bb7e4c18464a7bba562acbe482e3cabd
