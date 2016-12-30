@@ -1,0 +1,61 @@
+package command
+
+import (
+	"fmt"
+	"net/http"
+	"os"
+
+	"github.com/advanderveer/s3sync/s3sync"
+	"github.com/smartystreets/go-aws-auth"
+)
+
+//S3Opts configur how to interact with S3
+type S3Opts struct {
+	S3Scheme       string `long:"s3-scheme" default:"https" value-name:"https" description:"..."`
+	S3Host         string `long:"s3-host" default:"s3.amazonaws.com" value-name:"s3.amazonaws.com" description:"..."`
+	S3Bucket       string `long:"s3-bucket" value-name:"AWS_S3_BUCKET" description:"..."`
+	S3AccessKey    string `long:"s3-access-key" value-name:"AWS_ACCESS_KEY_ID" description:"..."`
+	S3SecretKey    string `long:"s3-secret-key" value-name:"AWS_SECRET_ACCESS_KEY" description:"..."`
+	S3SessionToken string `long:"s3-session-token" value-name:"AWS_SESSION_TOKEN" description:"..."`
+}
+
+//CreateS3Client uses command line options to create an s3 client
+func (opts *S3Opts) CreateS3Client() (s3 *s3sync.S3, err error) {
+	if os.Getenv("AWS_REGION") != "" {
+		opts.S3Host = fmt.Sprintf("s3-%s.amazonaws.com", os.Getenv("AWS_REGION"))
+	}
+
+	if opts.S3Bucket == "" {
+		os.Getenv("AWS_S3_BUCKET")
+	}
+
+	if opts.S3Bucket == "" {
+		return nil, fmt.Errorf("No s3 bucket configured, use the cli '--s3-bucket' option or set the AWS_S3_BUCKET environment variable")
+	}
+
+	if opts.S3AccessKey == "" {
+		opts.S3AccessKey = os.Getenv("AWS_ACCESS_KEY_ID")
+	}
+
+	if opts.S3SecretKey == "" {
+		opts.S3SecretKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
+	}
+
+	if opts.S3SessionToken == "" {
+		opts.S3SessionToken = os.Getenv("AWS_SESSION_TOKEN")
+	}
+
+	s3 = &s3sync.S3{
+		Scheme: opts.S3Scheme,
+		Host:   opts.S3Host,
+		Bucket: opts.S3Bucket,
+		Client: &http.Client{},
+		Creds: awsauth.Credentials{
+			AccessKeyID:     opts.S3AccessKey,
+			SecretAccessKey: opts.S3SecretKey,
+			SecurityToken:   opts.S3SessionToken,
+		},
+	}
+
+	return s3, nil
+}

@@ -1,4 +1,6 @@
 package: github.com/advanderveer/s3sync
+ignore:
+- golang.org/x/sys #only used for solaris, which we wont support initially
 import:
 - package: github.com/restic/chunker                  #content-based chunking
   version: 50428e727f50c16e1bcb3050209fc2758427a6af
@@ -6,3 +8,7 @@ import:
   version: 2043e6d0bb7e4c18464a7bba562acbe482e3cabd
 - package: github.com/dchest/safefile                 #atomic file writing
   version: 855e8d98f1852d48dde521e0522408d1fe7e836a
+- package: github.com/mitchellh/cli                   #command line library
+  version: fa17b36f6c61f1ddbbb08c9f6fde94b3c065a09d
+- package: github.com/jessevdk/go-flags               #flexible flag parsing
+  version: 4e64e4a4e2552194cf594243e23aa9baf3b4297e

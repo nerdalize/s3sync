@@ -3,13 +3,11 @@ package main_test
 import (
 	"archive/tar"
 	"bytes"
-	"crypto/sha256"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,9 +16,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/advanderveer/s3sync/s3sync"
 	"github.com/dchest/safefile"
 	"github.com/restic/chunker"
-	"github.com/smartystreets/go-aws-auth"
 )
 
 const KiB = 1024
@@ -43,9 +41,11 @@ func randb(size int64, seed int64) []byte {
 	return b
 }
 
-func bucket(t interface {
+type skipper interface {
 	Skip(...interface{})
-}) string {
+}
+
+func bucket(t skipper) string {
 	buf := bytes.NewBuffer(nil)
 	cmd := exec.Command("terraform", "output", "s3_bucket")
 	cmd.Stderr = os.Stderr
@@ -56,6 +56,21 @@ func bucket(t interface {
 	}
 
 	return strings.TrimSpace(buf.String())
+}
+
+func s3(t skipper) (s3 *s3sync.S3) {
+	s3 = &s3sync.S3{
+		Scheme: "http",
+		Host:   fmt.Sprintf("s3-%s.amazonaws.com", os.Getenv("AWS_REGION")),
+		Bucket: bucket(t),
+		Client: &http.Client{},
+	}
+
+	if s3.Bucket == "" {
+		t.Skip("`terraform output s3_bucket` not available")
+	}
+
+	return s3
 }
 
 func testfile(dir string, name string, size, seed int64, t interface {
@@ -149,287 +164,18 @@ func testdir(seed int64, t fataller) (string, int64, func(string, fataller)) {
 	return dir, total, testfunc
 }
 
-//A boring s3 client
-type S3 struct {
-	scheme string
-	host   string
-	bucket string
-	client *http.Client
-	creds  awsauth.Credentials
-}
-
-//Has attempts to download header info for an S3 k
-func (s3 *S3) Has(k []byte) (has bool, err error) {
-	raw := fmt.Sprintf("%s://%s/%s/%x", s3.scheme, s3.host, s3.bucket, k)
-	loc, err := url.Parse(raw)
-	if err != nil {
-		return false, fmt.Errorf("failed to parse '%s' as url: %v", raw, err)
-	}
-
-	req, err := http.NewRequest("HEAD", loc.String(), nil)
-	if err != nil {
-		return false, fmt.Errorf("failed to create HEAD request: %v", err)
-	}
-
-	if s3.creds.AccessKeyID != "" {
-		awsauth.Sign(req, s3.creds)
-	}
-
-	resp, err := s3.client.Do(req)
-	if err != nil {
-		return false, fmt.Errorf("failed to perform HEAD request: %v", err)
-	}
-
-	if resp.StatusCode == http.StatusOK {
-		return true, nil
-	} else if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusForbidden {
-		//AWS returns forbidden for a HEAD request if the one performing the operation does not have
-		//list bucket permissions
-		return false, nil
-	} else {
-		return false, fmt.Errorf("unexpected response from HEAD '%s' request: %s", loc, resp.Status)
-	}
-}
-
-//Get attempts to download chunk 'k' from an S3 object store
-func (s3 *S3) Get(k []byte) (resp *http.Response, err error) {
-	raw := fmt.Sprintf("%s://%s/%s/%x", s3.scheme, s3.host, s3.bucket, k)
-	loc, err := url.Parse(raw)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse '%s' as url: %v", raw, err)
-	}
-
-	req, err := http.NewRequest("GET", loc.String(), nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create GET request: %v", err)
-	}
-
-	if s3.creds.AccessKeyID != "" {
-		awsauth.Sign(req, s3.creds)
-	}
-
-	resp, err = s3.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to perform GET request: %v", err)
-	}
-
-	return resp, nil
-}
-
-//Put uploads a chunk to an S3 object store under the provided key 'k'
-func (s3 *S3) Put(k []byte, body io.Reader) error {
-	raw := fmt.Sprintf("%s://%s/%s/%x", s3.scheme, s3.host, s3.bucket, k)
-	loc, err := url.Parse(raw)
-	if err != nil {
-		return fmt.Errorf("failed to parse '%s' as url: %v", raw, err)
-	}
-
-	req, err := http.NewRequest("PUT", loc.String(), body)
-	if err != nil {
-		return fmt.Errorf("failed to create PUT request: %v", err)
-	}
-
-	if s3.creds.AccessKeyID != "" {
-		awsauth.Sign(req, s3.creds)
-	}
-
-	resp, err := s3.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to perform PUT request: %v", err)
-	}
-
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("failed to read response body for unexpected response: %s", resp.Status)
-		}
-
-		return fmt.Errorf("unexpected response from PUT '%s' response: %s, body: %v", loc, resp.Status, string(body))
-	}
-
-	return nil
-}
-
-type K [sha256.Size]byte
-
-var ZeroKey = K{}
-
-type KeyWriter interface {
-	Write(k K) error
-}
-
-type KeyReader interface {
-	Read() (K, error)
-}
-
-func upload(cr *chunker.Chunker, kw KeyWriter, concurrency int, s3 *S3) (err error) {
-	type result struct {
-		err error
-		k   K
-	}
-
-	type item struct {
-		chunk []byte
-		resCh chan *result
-		err   error
-	}
-
-	work := func(it *item) {
-		k := sha256.Sum256(it.chunk) //hash
-		exists, err := s3.Has(k[:])  //check existence
-		if err != nil {
-			it.resCh <- &result{fmt.Errorf("failed to check existence of '%x': %v", k, err), ZeroKey}
-			return
-		}
-
-		if !exists {
-			err = s3.Put(k[:], bytes.NewBuffer(it.chunk)) //if not exists put
-			if err != nil {
-				it.resCh <- &result{fmt.Errorf("failed to put chunk '%x': %v", k, err), ZeroKey}
-				return
-			}
-		}
-
-		it.resCh <- &result{nil, k}
-	}
-
-	//fan out
-	itemCh := make(chan *item, concurrency)
-	go func() {
-		defer close(itemCh)
-		buf := make([]byte, chunker.MaxSize)
-		for {
-			chunk, err := cr.Next(buf)
-			if err != nil {
-				if err != io.EOF {
-					itemCh <- &item{err: err}
-				}
-
-				break
-			}
-
-			it := &item{
-				chunk: make([]byte, chunk.Length),
-				resCh: make(chan *result),
-			}
-
-			copy(it.chunk, chunk.Data) //underlying buffer is switched out
-
-			go work(it)  //create work
-			itemCh <- it //send to fan-in thread for syncing results
-		}
-	}()
-
-	//fan-in
-	for it := range itemCh {
-		if it.err != nil {
-			return fmt.Errorf("failed to iterate: %v", it.err)
-		}
-
-		res := <-it.resCh
-		if res.err != nil {
-			return res.err
-		}
-
-		err = kw.Write(res.k)
-		if err != nil {
-			return fmt.Errorf("failed to write key: %v", err)
-		}
-	}
-
-	return nil
-}
-
-func download(kr KeyReader, cw io.Writer, concurrency int, s3 *S3) (err error) {
-	type result struct {
-		err   error
-		chunk []byte
-	}
-
-	type item struct {
-		k     K
-		resCh chan *result
-		err   error
-	}
-
-	work := func(it *item) {
-		resp, err := s3.Get(it.k[:])
-		if err != nil {
-			it.resCh <- &result{fmt.Errorf("failed to get key '%x': %v", it.k, err), nil}
-			return
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			it.resCh <- &result{fmt.Errorf("unexpected status for '%x': %v", it.k, resp.Status), nil}
-			return
-		}
-
-		chunk, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			it.resCh <- &result{fmt.Errorf("failed to get read response body for '%x': %v", it.k, err), nil}
-			return
-		}
-
-		it.resCh <- &result{nil, chunk}
-	}
-
-	//fan out
-	itemCh := make(chan *item, concurrency)
-	go func() {
-		defer close(itemCh)
-		for {
-			k, err := kr.Read()
-			if err != nil {
-				if err != io.EOF {
-					itemCh <- &item{err: err}
-				}
-
-				break
-			}
-
-			it := &item{
-				k:     k,
-				resCh: make(chan *result),
-			}
-
-			go work(it)  //create work
-			itemCh <- it //send to fan-in thread for syncing results
-		}
-	}()
-
-	//fan-in
-	for it := range itemCh {
-		if it.err != nil {
-			return fmt.Errorf("failed to iterate: %v", it.err)
-		}
-
-		res := <-it.resCh
-		if res.err != nil {
-			return res.err
-		}
-
-		_, err = cw.Write(res.chunk)
-		if err != nil {
-			return fmt.Errorf("failed to write key: %v", err)
-		}
-	}
-
-	return nil
-}
-
 type keys struct {
 	*sync.Mutex
 	pos int
-	M   map[K]struct{}
-	L   []K
+	M   map[s3sync.K]struct{}
+	L   []s3sync.K
 }
 
 func KeyReadWriter() *keys {
-	return &keys{Mutex: &sync.Mutex{}, M: map[K]struct{}{}}
+	return &keys{Mutex: &sync.Mutex{}, M: map[s3sync.K]struct{}{}}
 }
 
-func (kw *keys) Write(k K) error {
+func (kw *keys) Write(k s3sync.K) error {
 	kw.Lock()
 	defer kw.Unlock()
 	if _, ok := kw.M[k]; ok {
@@ -441,11 +187,11 @@ func (kw *keys) Write(k K) error {
 	return nil
 }
 
-func (kw *keys) Read() (k K, err error) {
+func (kw *keys) Read() (k s3sync.K, err error) {
 	kw.Lock()
 	defer kw.Unlock()
 	if kw.pos == len(kw.L) {
-		return ZeroKey, io.EOF
+		return s3sync.ZeroKey, io.EOF
 	}
 
 	k = kw.L[kw.pos]
@@ -500,76 +246,15 @@ func untardir(dir string, r io.Reader) (err error) {
 	return nil
 }
 
-func tardir(dir string, w io.Writer) (err error) {
-	tw := tar.NewWriter(w)
-	err = filepath.Walk(dir, func(path string, fi os.FileInfo, err error) error {
-		if fi.Mode().IsDir() {
-			return nil
-		}
-
-		rel, err := filepath.Rel(dir, path)
-		if err != nil {
-			return fmt.Errorf("failed to determine path '%s' relative to '%s': %v", path, dir, err)
-		}
-
-		f, err := os.Open(path)
-		if err != nil {
-			return fmt.Errorf("failed to open file '%s': %v", rel, err)
-		}
-
-		err = tw.WriteHeader(&tar.Header{
-			Name:    rel,
-			Mode:    int64(fi.Mode()),
-			ModTime: fi.ModTime(),
-			Size:    fi.Size(),
-		})
-		if err != nil {
-			return fmt.Errorf("failed to write tar header for '%s': %v", rel, err)
-		}
-
-		defer f.Close()
-		n, err := io.Copy(tw, f)
-		if err != nil {
-			return fmt.Errorf("failed to write tar file for '%s': %v", rel, err)
-		}
-
-		if n != fi.Size() {
-			return fmt.Errorf("unexpected nr of bytes written to tar, saw '%d' on-disk but only wrote '%d', is directory '%s' in use?", fi.Size(), n, dir)
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return fmt.Errorf("failed to walk dir '%s': %v", dir, err)
-	}
-
-	if err = tw.Close(); err != nil {
-		return fmt.Errorf("failed to write remaining data: %v", err)
-	}
-
-	return nil
-}
-
 func BenchmarkTarUntarDirectory(b *testing.B) {
-	s3 := &S3{
-		scheme: "http",
-		host:   fmt.Sprintf("s3-%s.amazonaws.com", os.Getenv("AWS_REGION")),
-		bucket: bucket(b),
-		client: &http.Client{},
-	}
-
-	if s3.bucket == "" {
-		b.Skip("`terraform output s3_bucket` not available")
-	}
-
+	// s3 := s3(b)
 	dir, size, testfn := testdir(0, b)
 	tarbuf := bytes.NewBuffer(nil)
 	b.Run("tarring", func(b *testing.B) {
 		b.SetBytes(size)
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			err := tardir(dir, tarbuf)
+			err := s3sync.Tar(dir, tarbuf)
 			if err != nil {
 				b.Errorf("failed to tar directory: %v", err)
 			}
@@ -595,22 +280,12 @@ func BenchmarkTarUntarDirectory(b *testing.B) {
 		}
 	})
 
-	//outtar should be equal
+	//outtar results should be equal
 	testfn(outdir, b)
 }
 
 func BenchmarkUpDownFromMemory(b *testing.B) {
-	s3 := &S3{
-		scheme: "http",
-		host:   fmt.Sprintf("s3-%s.amazonaws.com", os.Getenv("AWS_REGION")),
-		bucket: bucket(b),
-		client: &http.Client{},
-	}
-
-	if s3.bucket == "" {
-		b.Skip("`terraform output s3_bucket` not available")
-	}
-
+	s3 := s3(b)
 	var krw = KeyReadWriter()
 	var input = randb(12*1024*1024, 0)
 	var output = bytes.NewBuffer(nil)
@@ -632,13 +307,13 @@ func BenchmarkUpDownFromMemory(b *testing.B) {
 	}
 }
 
-func benchmarkUpload(b *testing.B, krw *keys, data []byte, s3 *S3) {
+func benchmarkUpload(b *testing.B, krw *keys, data []byte, s3 *s3sync.S3) {
 	b.SetBytes(int64(len(data)))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		r := bytes.NewReader(data)
 		cr := chunker.New(r, chunker.Pol(0x3DA3358B4DC173))
-		err := upload(cr, krw, 64, s3)
+		err := s3sync.Upload(cr, krw, 64, s3)
 		if err != nil {
 			b.Error(err)
 		}
@@ -649,11 +324,11 @@ func benchmarkUpload(b *testing.B, krw *keys, data []byte, s3 *S3) {
 	}
 }
 
-func benchmarkDownload(b *testing.B, krw *keys, data []byte, output io.Writer, s3 *S3) {
+func benchmarkDownload(b *testing.B, krw *keys, data []byte, output io.Writer, s3 *s3sync.S3) {
 	b.SetBytes(int64(len(data)))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err := download(krw, output, 64, s3)
+		err := s3sync.Download(krw, output, 64, s3)
 		if err != nil {
 			b.Error(err)
 		}
