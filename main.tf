@@ -4,6 +4,9 @@ resource "random_id" "bucket" {
 
 resource "aws_s3_bucket" "sync" {
   bucket = "sync-${random_id.bucket.hex}"
+  versioning {
+    enabled = true
+  }
 }
 
 resource "aws_s3_bucket_policy" "b" {

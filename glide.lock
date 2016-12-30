@@ -1,6 +1,8 @@
-hash: 9a0481bb824161ed9524e08d0855b8e265a16c5a22a1ff29849c12dc7619e189
-updated: 2016-12-29T14:08:12.579563146+01:00
+hash: 18854bc32bb4776c38561618a7783440d35d68c20a4f33b6db88fca1eda0c019
+updated: 2016-12-30T14:27:40.281341896+01:00
 imports:
+- name: github.com/dchest/safefile
+  version: 855e8d98f1852d48dde521e0522408d1fe7e836a
 - name: github.com/restic/chunker
   version: 50428e727f50c16e1bcb3050209fc2758427a6af
 - name: github.com/smartystreets/go-aws-auth

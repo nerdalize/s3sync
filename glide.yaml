@@ -4,3 +4,5 @@ import:
   version: 50428e727f50c16e1bcb3050209fc2758427a6af
 - package: github.com/smartystreets/go-aws-auth       #sign aws http requests
   version: 2043e6d0bb7e4c18464a7bba562acbe482e3cabd
+- package: github.com/dchest/safefile                 #atomic file writing
+  version: 855e8d98f1852d48dde521e0522408d1fe7e836a
