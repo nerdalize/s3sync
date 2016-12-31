@@ -12,22 +12,22 @@ import (
 	"github.com/restic/chunker"
 )
 
-//CommitOpts describes command options
-type CommitOpts struct {
+//PullOpts describes command options
+type PullOpts struct {
 	S3Opts
 }
 
-//Commit command
-type Commit struct {
+//Pull command
+type Pull struct {
 	ui     cli.Ui
-	opts   *CommitOpts
+	opts   *PullOpts
 	parser *flags.Parser
 }
 
-//CommitFactory returns a factory method for the join command
-func CommitFactory() func() (cmd cli.Command, err error) {
-	cmd := &Commit{
-		opts: &CommitOpts{},
+//PullFactory returns a factory method for the join command
+func PullFactory() func() (cmd cli.Command, err error) {
+	cmd := &Pull{
+		opts: &PullOpts{},
 		ui:   &cli.BasicUi{Reader: os.Stdin, Writer: os.Stderr},
 	}
 
@@ -45,7 +45,7 @@ func CommitFactory() func() (cmd cli.Command, err error) {
 // Help returns long-form help text that includes the command-line
 // usage, a brief few sentences explaining the function of the command,
 // and the complete list of flags the command accepts.
-func (cmd *Commit) Help() string {
+func (cmd *Pull) Help() string {
 	buf := bytes.NewBuffer(nil)
 	cmd.parser.WriteHelp(buf)
 
@@ -57,14 +57,14 @@ func (cmd *Commit) Help() string {
 
 // Synopsis returns a one-line, short synopsis of the command.
 // This should be less than 50 characters ideally.
-func (cmd *Commit) Synopsis() string {
-	return "save a new version of a directory and start syncing"
+func (cmd *Pull) Synopsis() string {
+	return "commit and upload a new version of a directory"
 }
 
 // Run runs the actual command with the given CLI instance and
 // command-line arguments. It returns the exit status when it is
 // finished.
-func (cmd *Commit) Run(args []string) int {
+func (cmd *Pull) Run(args []string) int {
 	a, err := cmd.parser.ParseArgs(args)
 	if err != nil {
 		cmd.ui.Error(err.Error())
@@ -79,16 +79,9 @@ func (cmd *Commit) Run(args []string) int {
 	return 0
 }
 
-type stdoutkw struct{}
-
-func (kw *stdoutkw) Write(k s3sync.K) (err error) {
-	_, err = fmt.Fprintf(os.Stdout, "%x\n", k)
-	return err
-}
-
 //DoRun is called by run and allows an error to be returned
-func (cmd *Commit) DoRun(args []string) (err error) {
-	if len(args) < 1 {
+func (cmd *Pull) DoRun(args []string) (err error) {
+	if len(args) < 2 {
 		return fmt.Errorf("not enough arguments, use --help for more information")
 	}
 
@@ -99,7 +92,7 @@ func (cmd *Commit) DoRun(args []string) (err error) {
 		return fmt.Errorf("provided path '%s' is not a directory", args[0])
 	}
 
-	s3, err := cmd.opts.CreateS3Client()
+	s3, err := cmd.opts.CreateS3Client(args[1])
 	if err != nil {
 		return err
 	}

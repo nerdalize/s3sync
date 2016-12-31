@@ -18,7 +18,7 @@ func main() {
 	c := cli.NewCLI(name, version)
 	c.Args = os.Args[1:]
 	c.Commands = map[string]cli.CommandFactory{
-		"commit": command.CommitFactory(),
+		"push": command.PushFactory(),
 	}
 
 	status, err := c.Run()

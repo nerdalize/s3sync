@@ -3,7 +3,9 @@ package command
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
+	"strings"
 
 	"github.com/advanderveer/s3sync/s3sync"
 	"github.com/smartystreets/go-aws-auth"
@@ -13,24 +15,29 @@ import (
 type S3Opts struct {
 	S3Scheme       string `long:"s3-scheme" default:"https" value-name:"https" description:"..."`
 	S3Host         string `long:"s3-host" default:"s3.amazonaws.com" value-name:"s3.amazonaws.com" description:"..."`
-	S3Bucket       string `long:"s3-bucket" value-name:"AWS_S3_BUCKET" description:"..."`
+	S3Prefix       string `long:"s3-prefix" description:"..."`
 	S3AccessKey    string `long:"s3-access-key" value-name:"AWS_ACCESS_KEY_ID" description:"..."`
 	S3SecretKey    string `long:"s3-secret-key" value-name:"AWS_SECRET_ACCESS_KEY" description:"..."`
 	S3SessionToken string `long:"s3-session-token" value-name:"AWS_SESSION_TOKEN" description:"..."`
 }
 
 //CreateS3Client uses command line options to create an s3 client
-func (opts *S3Opts) CreateS3Client() (s3 *s3sync.S3, err error) {
+func (opts *S3Opts) CreateS3Client(ep string) (s3 *s3sync.S3, err error) {
+	loc, err := url.Parse(ep)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse '%s' as url: %v", ep, err)
+	}
+
 	if os.Getenv("AWS_REGION") != "" {
 		opts.S3Host = fmt.Sprintf("s3-%s.amazonaws.com", os.Getenv("AWS_REGION"))
 	}
 
-	if opts.S3Bucket == "" {
-		os.Getenv("AWS_S3_BUCKET")
+	if loc.Host != "" {
+		opts.S3Host = loc.Host
 	}
 
-	if opts.S3Bucket == "" {
-		return nil, fmt.Errorf("No s3 bucket configured, use the cli '--s3-bucket' option or set the AWS_S3_BUCKET environment variable")
+	if loc.Path != "" {
+		opts.S3Prefix = strings.Trim(loc.Path, "/")
 	}
 
 	if opts.S3AccessKey == "" {
@@ -45,10 +52,14 @@ func (opts *S3Opts) CreateS3Client() (s3 *s3sync.S3, err error) {
 		opts.S3SessionToken = os.Getenv("AWS_SESSION_TOKEN")
 	}
 
+	if loc.Scheme != "" {
+		opts.S3Scheme = loc.Scheme
+	}
+
 	s3 = &s3sync.S3{
 		Scheme: opts.S3Scheme,
 		Host:   opts.S3Host,
-		Bucket: opts.S3Bucket,
+		Prefix: opts.S3Prefix,
 		Client: &http.Client{},
 		Creds: awsauth.Credentials{
 			AccessKeyID:     opts.S3AccessKey,
