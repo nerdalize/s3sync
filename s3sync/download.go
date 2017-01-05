@@ -22,7 +22,7 @@ func Download(kr KeyReader, cw io.Writer, concurrency int, s3 *S3) (err error) {
 
 	work := func(it *item) {
 		var resp *http.Response
-		resp, err = s3.Get(it.k[:])
+		resp, err = s3.Get(BUCKET_CONTENT, it.k[:])
 		if err != nil {
 			it.resCh <- &result{fmt.Errorf("failed to get key '%x': %v", it.k, err), nil}
 			return

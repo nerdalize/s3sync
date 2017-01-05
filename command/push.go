@@ -92,12 +92,12 @@ func (cmd *Push) DoRun(args []string) (err error) {
 		return fmt.Errorf("provided path '%s' is not a directory", args[0])
 	}
 
-	s3, err := cmd.opts.CreateS3Client(args[1])
+	s3, err := cmd.opts.CreateS3Client()
 	if err != nil {
 		return err
 	}
 
-	cmd.ui.Info(fmt.Sprintf("pushing to %s", s3.KeyURL(s3sync.ZeroKey[:])))
+	cmd.ui.Info(fmt.Sprintf("pushing to %s", s3.KeyURL(s3sync.BUCKET_CONTENT, s3sync.ZeroKey[:])))
 
 	doneCh := make(chan error)
 	pr, pw := io.Pipe()

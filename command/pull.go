@@ -92,7 +92,7 @@ func (cmd *Pull) DoRun(args []string) (err error) {
 		return fmt.Errorf("provided path '%s' is not a directory", args[0])
 	}
 
-	s3, err := cmd.opts.CreateS3Client(args[1])
+	s3, err := cmd.opts.CreateS3Client()
 	if err != nil {
 		return err
 	}
