@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/satori/go.uuid"
 	"github.com/restic/chunker"
 )
 
@@ -25,14 +26,14 @@ func Upload(cr *chunker.Chunker, kw KeyWriter, concurrency int, s3 *S3) (err err
 	work := func(it *item) {
 		var exists bool
 		k := sha256.Sum256(it.chunk) //hash
-		exists, err = s3.Has(k[:])   //check existence
+		exists, err = s3.Has(BUCKET_CONTENT, k[:])   //check existence
 		if err != nil {
 			it.resCh <- &result{fmt.Errorf("failed to check existence of '%x': %v", k, err), ZeroKey}
 			return
 		}
 
 		if !exists {
-			err = s3.Put(k[:], bytes.NewBuffer(it.chunk)) //if not exists put
+			err = s3.Put(BUCKET_CONTENT, k[:], bytes.NewBuffer(it.chunk)) //if not exists put
 			if err != nil {
 				it.resCh <- &result{fmt.Errorf("failed to put chunk '%x': %v", k, err), ZeroKey}
 				return
@@ -70,6 +71,8 @@ func Upload(cr *chunker.Chunker, kw KeyWriter, concurrency int, s3 *S3) (err err
 		}
 	}()
 
+	var keys []K
+
 	//fan-in
 	for it := range itemCh {
 		if it.err != nil {
@@ -81,10 +84,22 @@ func Upload(cr *chunker.Chunker, kw KeyWriter, concurrency int, s3 *S3) (err err
 			return res.err
 		}
 
+		keys = append(keys, res.k)
 		err = kw.Write(res.k)
 		if err != nil {
 			return fmt.Errorf("failed to write key: %v", err)
 		}
+	}
+
+	//push index file
+	id := uuid.NewV4()
+	buf := new(bytes.Buffer)
+	for _, k := range keys {
+		buf.WriteString(fmt.Sprintf("%x\n",k))
+	}
+	err = s3.Put(BUCKET_METADATA, id[:], buf) //if not exists put
+	if err != nil {
+		return fmt.Errorf("failed to put metadata file with uuid %v: %v", id, err)
 	}
 
 	return nil
