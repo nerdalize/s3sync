@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/advanderveer/s3sync/command"
+	"github.com/nerdalize/s3sync/command"
 
 	"github.com/mitchellh/cli"
 )

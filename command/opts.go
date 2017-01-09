@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/advanderveer/s3sync/s3sync"
+	"github.com/nerdalize/s3sync/s3sync"
 	"github.com/smartystreets/go-aws-auth"
 )
 

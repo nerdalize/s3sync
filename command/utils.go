@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/advanderveer/s3sync/s3sync"
+	"github.com/nerdalize/s3sync/s3sync"
 )
 
 type stdoutkw struct{}

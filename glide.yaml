@@ -1,4 +1,4 @@
-package: github.com/advanderveer/s3sync
+package: github.com/nerdalize/s3sync
 ignore:
 - golang.org/x/sys #only used for solaris, which we wont support initially
 import:

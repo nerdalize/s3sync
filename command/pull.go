@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/advanderveer/s3sync/s3sync"
+	"github.com/nerdalize/s3sync/s3sync"
 	"github.com/jessevdk/go-flags"
 	"github.com/mitchellh/cli"
 	"github.com/restic/chunker"
