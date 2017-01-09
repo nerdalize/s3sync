@@ -1,8 +1,15 @@
 package s3sync
 
-import "crypto/sha256"
+import (
+	"crypto/sha256"
+	"fmt"
+)
 
 type K [sha256.Size]byte
+
+func (k K) ToString() string {
+	return fmt.Sprintf("%x", k)
+}
 
 var ZeroKey = K{}
 

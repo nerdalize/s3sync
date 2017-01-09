@@ -3,13 +3,11 @@ package command
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"os"
 
 	"github.com/jessevdk/go-flags"
 	"github.com/mitchellh/cli"
 	"github.com/nerdalize/s3sync/s3sync"
-	"github.com/restic/chunker"
 )
 
 //PushOpts describes command options
@@ -85,39 +83,14 @@ func (cmd *Push) DoRun(args []string) (err error) {
 		return fmt.Errorf("not enough arguments, use --help for more information")
 	}
 
-	fi, err := os.Stat(args[0])
-	if err != nil {
-		return fmt.Errorf("failed to inspect '%s' for commit: %v", args[0], err)
-	} else if !fi.IsDir() {
-		return fmt.Errorf("provided path '%s' is not a directory", args[0])
-	}
-
-	id, err := GetProjectID(args[0])
-	if err != nil {
-		return fmt.Errorf("could not get project ID: %v", err)
-	}
-
 	s3, err := cmd.opts.CreateS3Client()
 	if err != nil {
 		return err
 	}
 
-	cmd.ui.Info(fmt.Sprintf("pushing to %s", s3.KeyURL(s3sync.BucketContent, s3sync.ZeroKey[:])))
+	cmd.ui.Info(fmt.Sprintf("pushing to %s", s3.KeyURL(s3sync.BucketContent, "")))
 
-	doneCh := make(chan error)
-	pr, pw := io.Pipe()
-	cr := chunker.New(pr, chunker.Pol(0x3DA3358B4DC173))
-	go func() {
-		doneCh <- s3sync.Upload(cr, &stdoutkw{}, 64, s3, id)
-	}()
-
-	err = s3sync.Tar(args[0], pw)
-	if err != nil {
-		return fmt.Errorf("failed to tar '%s': %v", args[0], err)
-	}
-
-	pw.Close()
-	err = <-doneCh
+	err = s3sync.UploadProject(args[0], &stdoutkw{}, 64, s3)
 	if err != nil {
 		return fmt.Errorf("failed to upload: %v", err)
 	}

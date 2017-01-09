@@ -23,7 +23,7 @@ type S3 struct {
 }
 
 //KeyURL returns the url to a key based on s3 config
-func (s3 *S3) KeyURL(bucket string, k []byte) string {
+func (s3 *S3) KeyURL(bucket string, k string) string {
 	// if s3.Prefix == "" {
 	// 	return fmt.Sprintf(
 	// 		"%s://%s/%x",
@@ -32,14 +32,14 @@ func (s3 *S3) KeyURL(bucket string, k []byte) string {
 	// }
 
 	return fmt.Sprintf(
-		"%s://%s/%s/%x",
+		"%s://%s/%s/%s",
 		s3.Scheme,
 		s3.Host,
 		bucket, k)
 }
 
 //Has attempts to download header info for an S3 k
-func (s3 *S3) Has(bucket string, k []byte) (has bool, err error) {
+func (s3 *S3) Has(bucket string, k string) (has bool, err error) {
 	raw := s3.KeyURL(bucket, k)
 	loc, err := url.Parse(raw)
 	if err != nil {
@@ -72,7 +72,7 @@ func (s3 *S3) Has(bucket string, k []byte) (has bool, err error) {
 }
 
 //Get attempts to download chunk 'k' from an S3 object store
-func (s3 *S3) Get(bucket string, k []byte) (resp *http.Response, err error) {
+func (s3 *S3) Get(bucket string, k string) (resp *http.Response, err error) {
 	raw := s3.KeyURL(bucket, k)
 	loc, err := url.Parse(raw)
 	if err != nil {
@@ -97,7 +97,7 @@ func (s3 *S3) Get(bucket string, k []byte) (resp *http.Response, err error) {
 }
 
 //Put uploads a chunk to an S3 object store under the provided key 'k'
-func (s3 *S3) Put(bucket string, k []byte, body io.Reader) error {
+func (s3 *S3) Put(bucket string, k string, body io.Reader) error {
 	raw := s3.KeyURL(bucket, k)
 	loc, err := url.Parse(raw)
 	if err != nil {

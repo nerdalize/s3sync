@@ -3,14 +3,11 @@ package command
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"os"
 
 	"github.com/jessevdk/go-flags"
 	"github.com/mitchellh/cli"
 	"github.com/nerdalize/s3sync/s3sync"
-	"github.com/restic/chunker"
-	uuid "github.com/satori/go.uuid"
 )
 
 //PullOpts describes command options
@@ -32,7 +29,7 @@ func PullFactory() func() (cmd cli.Command, err error) {
 		ui:   &cli.BasicUi{Reader: os.Stdin, Writer: os.Stderr},
 	}
 
-	cmd.parser = flags.NewNamedParser("s3sync commit <DIR>", flags.Default)
+	cmd.parser = flags.NewNamedParser("s3sync pull <UUID> <DIR>", flags.Default)
 	_, err := cmd.parser.AddGroup("options", "options", cmd.opts)
 	if err != nil {
 		panic(err)
@@ -80,17 +77,19 @@ func (cmd *Pull) Run(args []string) int {
 	return 0
 }
 
+type Test []byte
+
 //DoRun is called by run and allows an error to be returned
 func (cmd *Pull) DoRun(args []string) (err error) {
 	if len(args) < 2 {
 		return fmt.Errorf("not enough arguments, use --help for more information")
 	}
 
-	fi, err := os.Stat(args[0])
+	fi, err := os.Stat(args[1])
 	if err != nil {
-		return fmt.Errorf("failed to inspect '%s' for commit: %v", args[0], err)
+		return fmt.Errorf("failed to inspect '%s' for commit: %v", args[1], err)
 	} else if !fi.IsDir() {
-		return fmt.Errorf("provided path '%s' is not a directory", args[0])
+		return fmt.Errorf("provided path '%s' is not a directory", args[1])
 	}
 
 	s3, err := cmd.opts.CreateS3Client()
@@ -98,25 +97,11 @@ func (cmd *Pull) DoRun(args []string) (err error) {
 		return err
 	}
 
-	done := make(chan struct{})
-	pr, pw := io.Pipe()
-	cr := chunker.New(pr, chunker.Pol(0x3DA3358B4DC173))
-	go func() {
-		err = s3sync.Upload(cr, &stdoutkw{}, 64, s3, uuid.UUID{})
-		if err != nil {
-			fmt.Println("ERROR", err)
-		}
-
-		done <- struct{}{}
-	}()
-
-	err = s3sync.Tar(args[0], pw)
+	//TODO: check for valid UUID (really stupid to blindly copy user input)
+	err = s3sync.DownloadProject(args[0], args[1], 64, s3)
 	if err != nil {
-		return fmt.Errorf("failed to tar '%s': %v", args[0], err)
+		return fmt.Errorf("could not download project: %v", err)
 	}
-
-	pw.Close()
-	<-done
 
 	return nil
 }

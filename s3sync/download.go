@@ -1,11 +1,54 @@
 package s3sync
 
 import (
+	"bytes"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
+	"strings"
 )
+
+func DownloadProject(id string, dir string, concurrency int, s3 *S3) error {
+	resp, err := s3.Get(BucketMetadata, id)
+	if err != nil {
+		return fmt.Errorf("could not read metadata from bucket '%x': %v", id, err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status for downloading metadata '%x': %v", id, resp.Status)
+	}
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(resp.Body)
+	s := buf.String()
+	var keys []K
+	for _, keyString := range strings.Split(s, "\n") {
+		if keyString == "" {
+			break
+		}
+		bytes, e := hex.DecodeString(keyString)
+		if e != nil {
+			return fmt.Errorf("could not decode key string '%v': %v", keyString, err)
+		}
+		var key K
+		copy(key[:], bytes)
+		keys = append(keys, key)
+	}
+
+	kr := KeyReadWriter()
+	kr.L = keys
+	doneCh := make(chan error)
+	pr, pw := io.Pipe()
+	go func() {
+		doneCh <- untardir(dir, pr)
+	}()
+	err = Download(kr, pw, concurrency, s3)
+	if err != nil {
+		return fmt.Errorf("failed to download project with uuid %s: %v", id, err)
+	}
+	return nil
+}
 
 //Download pulls chunks from s3 and writes them
 func Download(kr KeyReader, cw io.Writer, concurrency int, s3 *S3) (err error) {
@@ -22,7 +65,7 @@ func Download(kr KeyReader, cw io.Writer, concurrency int, s3 *S3) (err error) {
 
 	work := func(it *item) {
 		var resp *http.Response
-		resp, err = s3.Get(BucketContent, it.k[:])
+		resp, err = s3.Get(BucketContent, it.k.ToString())
 		if err != nil {
 			it.resCh <- &result{fmt.Errorf("failed to get key '%x': %v", it.k, err), nil}
 			return

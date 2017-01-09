@@ -19,6 +19,7 @@ func main() {
 	c.Args = os.Args[1:]
 	c.Commands = map[string]cli.CommandFactory{
 		"push": command.PushFactory(),
+		"pull": command.PullFactory(),
 	}
 
 	status, err := c.Run()
