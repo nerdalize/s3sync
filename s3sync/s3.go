@@ -10,8 +10,8 @@ import (
 	"github.com/smartystreets/go-aws-auth"
 )
 
-const BUCKET_CONTENT = "content"
-const BUCKET_METADATA = "metadata"
+const BucketContent = "content"
+const BucketMetadata = "metadata"
 
 //S3 is A boring s3 client
 type S3 struct {

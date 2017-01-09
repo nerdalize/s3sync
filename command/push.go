@@ -6,9 +6,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/nerdalize/s3sync/s3sync"
 	"github.com/jessevdk/go-flags"
 	"github.com/mitchellh/cli"
+	"github.com/nerdalize/s3sync/s3sync"
 	"github.com/restic/chunker"
 )
 
@@ -31,7 +31,7 @@ func PushFactory() func() (cmd cli.Command, err error) {
 		ui:   &cli.BasicUi{Reader: os.Stdin, Writer: os.Stderr},
 	}
 
-	cmd.parser = flags.NewNamedParser("s3sync commit <DIR> <S3>", flags.Default)
+	cmd.parser = flags.NewNamedParser("s3sync push <DIR>", flags.Default)
 	_, err := cmd.parser.AddGroup("options", "options", cmd.opts)
 	if err != nil {
 		panic(err)
@@ -81,7 +81,7 @@ func (cmd *Push) Run(args []string) int {
 
 //DoRun is called by run and allows an error to be returned
 func (cmd *Push) DoRun(args []string) (err error) {
-	if len(args) < 2 {
+	if len(args) < 1 {
 		return fmt.Errorf("not enough arguments, use --help for more information")
 	}
 
@@ -92,18 +92,23 @@ func (cmd *Push) DoRun(args []string) (err error) {
 		return fmt.Errorf("provided path '%s' is not a directory", args[0])
 	}
 
+	id, err := GetProjectID(args[0])
+	if err != nil {
+		return fmt.Errorf("could not get project ID: %v", err)
+	}
+
 	s3, err := cmd.opts.CreateS3Client()
 	if err != nil {
 		return err
 	}
 
-	cmd.ui.Info(fmt.Sprintf("pushing to %s", s3.KeyURL(s3sync.BUCKET_CONTENT, s3sync.ZeroKey[:])))
+	cmd.ui.Info(fmt.Sprintf("pushing to %s", s3.KeyURL(s3sync.BucketContent, s3sync.ZeroKey[:])))
 
 	doneCh := make(chan error)
 	pr, pw := io.Pipe()
 	cr := chunker.New(pr, chunker.Pol(0x3DA3358B4DC173))
 	go func() {
-		doneCh <- s3sync.Upload(cr, &stdoutkw{}, 64, s3)
+		doneCh <- s3sync.Upload(cr, &stdoutkw{}, 64, s3, id)
 	}()
 
 	err = s3sync.Tar(args[0], pw)

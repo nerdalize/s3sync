@@ -6,10 +6,11 @@ import (
 	"io"
 	"os"
 
-	"github.com/nerdalize/s3sync/s3sync"
 	"github.com/jessevdk/go-flags"
 	"github.com/mitchellh/cli"
+	"github.com/nerdalize/s3sync/s3sync"
 	"github.com/restic/chunker"
+	uuid "github.com/satori/go.uuid"
 )
 
 //PullOpts describes command options
@@ -101,7 +102,7 @@ func (cmd *Pull) DoRun(args []string) (err error) {
 	pr, pw := io.Pipe()
 	cr := chunker.New(pr, chunker.Pol(0x3DA3358B4DC173))
 	go func() {
-		err = s3sync.Upload(cr, &stdoutkw{}, 64, s3)
+		err = s3sync.Upload(cr, &stdoutkw{}, 64, s3, uuid.UUID{})
 		if err != nil {
 			fmt.Println("ERROR", err)
 		}
