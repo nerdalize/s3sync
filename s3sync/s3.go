@@ -24,13 +24,6 @@ type S3 struct {
 
 //KeyURL returns the url to a key based on s3 config
 func (s3 *S3) KeyURL(bucket string, k string) string {
-	// if s3.Prefix == "" {
-	// 	return fmt.Sprintf(
-	// 		"%s://%s/%x",
-	// 		s3.Scheme,
-	// 		s3.Host, k)
-	// }
-
 	return fmt.Sprintf(
 		"%s://%s/%s/%s",
 		s3.Scheme,

@@ -1,20 +1,22 @@
-hash: bf45c7790c5e3d56a728551a7f06ec2551dc44a5060be25f4c26ba86cf41267d
-updated: 2016-12-30T16:51:23.888433038+01:00
+hash: 9647cc656a2b7bf026b19e0ebcccfdf595313b6500360f5514900e67b4d53470
+updated: 2017-01-12T10:56:55.125994088+01:00
 imports:
 - name: github.com/armon/go-radix
-  version: 4239b77079c7b5d1243b7b4736304ce8ddb6f0f2
+  version: 2ac111d378579ad421cd9dd4c658505325a22536
 - name: github.com/bgentry/speakeasy
-  version: 675b82c74c0ed12283ee81ba8a534c8982c07b85
+  version: 2ac111d378579ad421cd9dd4c658505325a22536
 - name: github.com/dchest/safefile
-  version: 855e8d98f1852d48dde521e0522408d1fe7e836a
+  version: ""
+- name: github.com/hashicorp/go-uuid
+  version: 64130c7a86d732268a38cb04cfbaf0cc987fda98
 - name: github.com/jessevdk/go-flags
-  version: 4e64e4a4e2552194cf594243e23aa9baf3b4297e
+  version: ""
 - name: github.com/mattn/go-isatty
-  version: 30a891c33c7cde7b02a981314b4228ec99380cca
+  version: 2ac111d378579ad421cd9dd4c658505325a22536
 - name: github.com/mitchellh/cli
-  version: fa17b36f6c61f1ddbbb08c9f6fde94b3c065a09d
+  version: ""
 - name: github.com/restic/chunker
-  version: 50428e727f50c16e1bcb3050209fc2758427a6af
+  version: ""
 - name: github.com/smartystreets/go-aws-auth
-  version: 2043e6d0bb7e4c18464a7bba562acbe482e3cabd
-testImports: []
+  version: ""
+devImports: []

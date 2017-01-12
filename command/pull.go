@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	uuid "github.com/hashicorp/go-uuid"
 	"github.com/jessevdk/go-flags"
 	"github.com/mitchellh/cli"
 	"github.com/nerdalize/s3sync/s3sync"
@@ -77,8 +78,6 @@ func (cmd *Pull) Run(args []string) int {
 	return 0
 }
 
-type Test []byte
-
 //DoRun is called by run and allows an error to be returned
 func (cmd *Pull) DoRun(args []string) (err error) {
 	if len(args) < 2 {
@@ -90,6 +89,8 @@ func (cmd *Pull) DoRun(args []string) (err error) {
 		return fmt.Errorf("failed to inspect '%s' for commit: %v", args[1], err)
 	} else if !fi.IsDir() {
 		return fmt.Errorf("provided path '%s' is not a directory", args[1])
+	} else if _, err = uuid.ParseUUID(args[0]); err != nil {
+		return fmt.Errorf("provided UUID '%v' is not valid: %v", args[0], err)
 	}
 
 	s3, err := cmd.opts.CreateS3Client()

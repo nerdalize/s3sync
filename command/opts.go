@@ -3,9 +3,7 @@ package command
 import (
 	"fmt"
 	"net/http"
-	// "net/url"
 	"os"
-	// "strings"
 
 	"github.com/nerdalize/s3sync/s3sync"
 	"github.com/smartystreets/go-aws-auth"
@@ -23,22 +21,9 @@ type S3Opts struct {
 
 //CreateS3Client uses command line options to create an s3 client
 func (opts *S3Opts) CreateS3Client() (s3 *s3sync.S3, err error) {
-	// loc, err := url.Parse(ep)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to parse '%s' as url: %v", ep, err)
-	// }
-
 	if os.Getenv("AWS_REGION") != "" {
 		opts.S3Host = fmt.Sprintf("s3-%s.amazonaws.com", os.Getenv("AWS_REGION"))
 	}
-
-	// if loc.Host != "" {
-	// 	opts.S3Host = loc.Host
-	// }
-
-	// if loc.Path != "" {
-	// 	opts.S3Prefix = strings.Trim(loc.Path, "/")
-	// }
 
 	if opts.S3AccessKey == "" {
 		opts.S3AccessKey = os.Getenv("AWS_ACCESS_KEY_ID")
@@ -51,10 +36,6 @@ func (opts *S3Opts) CreateS3Client() (s3 *s3sync.S3, err error) {
 	if opts.S3SessionToken == "" {
 		opts.S3SessionToken = os.Getenv("AWS_SESSION_TOKEN")
 	}
-
-	// if loc.Scheme != "" {
-	// 	opts.S3Scheme = loc.Scheme
-	// }
 
 	s3 = &s3sync.S3{
 		Scheme: opts.S3Scheme,
