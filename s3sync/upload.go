@@ -50,7 +50,7 @@ func UploadProject(dir string, kw KeyWriter, concurrency int, s3 *S3) error {
 		}
 		buf.WriteString(fmt.Sprintf("%x\n", k))
 	}
-	err = s3.Put(BucketMetadata, id, buf) //if not exists put
+	err = s3.Put(PrefixMetadata, id, buf) //if not exists put
 	if err != nil {
 		return fmt.Errorf("failed to put metadata file with uuid %v: %v", id, err)
 	}
@@ -73,14 +73,14 @@ func Upload(cr *chunker.Chunker, kw KeyWriter, concurrency int, s3 *S3) (err err
 	work := func(it *item) {
 		var exists bool
 		var k K = sha256.Sum256(it.chunk)                 //hash
-		exists, err = s3.Has(BucketContent, k.ToString()) //check existence
+		exists, err = s3.Has(PrefixContent, k.ToString()) //check existence
 		if err != nil {
 			it.resCh <- &result{fmt.Errorf("failed to check existence of '%x': %v", k, err), ZeroKey}
 			return
 		}
 
 		if !exists {
-			err = s3.Put(BucketContent, k.ToString(), bytes.NewBuffer(it.chunk)) //if not exists put
+			err = s3.Put(PrefixContent, k.ToString(), bytes.NewBuffer(it.chunk)) //if not exists put
 			if err != nil {
 				it.resCh <- &result{fmt.Errorf("failed to put chunk '%x': %v", k, err), ZeroKey}
 				return

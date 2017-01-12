@@ -88,7 +88,7 @@ func (cmd *Push) DoRun(args []string) (err error) {
 		return err
 	}
 
-	cmd.ui.Info(fmt.Sprintf("pushing to %s", s3.KeyURL(s3sync.BucketContent, "")))
+	cmd.ui.Info(fmt.Sprintf("pushing to %s", s3.KeyURL(s3sync.PrefixContent, "")))
 
 	err = s3sync.UploadProject(args[0], &stdoutkw{}, 64, s3)
 	if err != nil {

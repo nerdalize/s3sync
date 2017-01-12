@@ -13,7 +13,7 @@ import (
 type S3Opts struct {
 	S3Scheme       string `long:"s3-scheme" default:"https" value-name:"https" description:"..."`
 	S3Host         string `long:"s3-host" default:"s3.amazonaws.com" value-name:"s3.amazonaws.com" description:"..."`
-	S3Prefix       string `long:"s3-prefix" description:"..."`
+	S3Root         string `long:"s3-root" description:"..."`
 	S3AccessKey    string `long:"s3-access-key" value-name:"AWS_ACCESS_KEY_ID" description:"..."`
 	S3SecretKey    string `long:"s3-secret-key" value-name:"AWS_SECRET_ACCESS_KEY" description:"..."`
 	S3SessionToken string `long:"s3-session-token" value-name:"AWS_SESSION_TOKEN" description:"..."`
@@ -40,7 +40,7 @@ func (opts *S3Opts) CreateS3Client() (s3 *s3sync.S3, err error) {
 	s3 = &s3sync.S3{
 		Scheme: opts.S3Scheme,
 		Host:   opts.S3Host,
-		Prefix: opts.S3Prefix,
+		Root:   opts.S3Root,
 		Client: &http.Client{},
 		Creds: awsauth.Credentials{
 			AccessKeyID:     opts.S3AccessKey,

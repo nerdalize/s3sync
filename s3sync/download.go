@@ -11,9 +11,9 @@ import (
 )
 
 func DownloadProject(id string, dir string, concurrency int, s3 *S3) error {
-	resp, err := s3.Get(BucketMetadata, id)
+	resp, err := s3.Get(PrefixMetadata, id)
 	if err != nil {
-		return fmt.Errorf("could not read metadata from bucket '%x': %v", id, err)
+		return fmt.Errorf("could not read metadata from object '%x': %v", id, err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status for downloading metadata '%x': %v", id, resp.Status)
@@ -65,7 +65,7 @@ func Download(kr KeyReader, cw io.Writer, concurrency int, s3 *S3) (err error) {
 
 	work := func(it *item) {
 		var resp *http.Response
-		resp, err = s3.Get(BucketContent, it.k.ToString())
+		resp, err = s3.Get(PrefixContent, it.k.ToString())
 		if err != nil {
 			it.resCh <- &result{fmt.Errorf("failed to get key '%x': %v", it.k, err), nil}
 			return
