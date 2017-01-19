@@ -11,7 +11,8 @@ import (
 	"github.com/smartystreets/go-aws-auth"
 )
 
-//PrefixContent is the prefix used in S3 to store uploaded content.
+//PrefixContent is the prefix used in S3 to store uploaded content. URL structure
+//for chunks is <scheme>://<host>/<root>/content/<key>
 const PrefixContent = "content"
 
 //PrefixMetadata is the prefix used in S3 to store metadata for content.

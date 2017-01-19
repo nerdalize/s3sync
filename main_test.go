@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nerdalize/s3sync/s3sync"
 	"github.com/dchest/safefile"
+	"github.com/nerdalize/s3sync/s3sync"
 	"github.com/restic/chunker"
 )
 
@@ -45,7 +45,7 @@ type skipper interface {
 	Skip(...interface{})
 }
 
-func bucket(t skipper) string {
+func root(t skipper) string {
 	buf := bytes.NewBuffer(nil)
 	cmd := exec.Command("terraform", "output", "s3_bucket")
 	cmd.Stderr = os.Stderr
@@ -62,11 +62,11 @@ func s3(t skipper) (s3 *s3sync.S3) {
 	s3 = &s3sync.S3{
 		Scheme: "http",
 		Host:   fmt.Sprintf("s3-%s.amazonaws.com", os.Getenv("AWS_REGION")),
-		Bucket: bucket(t),
+		Root:   root(t),
 		Client: &http.Client{},
 	}
 
-	if s3.Bucket == "" {
+	if s3.Root == "" {
 		t.Skip("`terraform output s3_bucket` not available")
 	}
 
