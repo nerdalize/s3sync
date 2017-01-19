@@ -2,6 +2,7 @@
 *.o
 *.a
 *.so
+*.nlz-storage-project
 
 # Folders
 _obj

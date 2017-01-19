@@ -6,38 +6,42 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"path"
 
 	"github.com/smartystreets/go-aws-auth"
 )
+
+//PrefixContent is the prefix used in S3 to store uploaded content. URL structure
+//for chunks is <scheme>://<host>/<root>/content/<key>
+const PrefixContent = "content"
+
+//PrefixMetadata is the prefix used in S3 to store metadata for content.
+//Metadata here is an index file containing references to the content chunks
+//that together form a TAR.
+const PrefixMetadata = "metadata"
 
 //S3 is A boring s3 client
 type S3 struct {
 	Scheme string
 	Host   string
-	Prefix string
+	Root   string
 	Client *http.Client
 	Creds  awsauth.Credentials
 }
 
 //KeyURL returns the url to a key based on s3 config
-func (s3 *S3) KeyURL(k []byte) string {
-	if s3.Prefix == "" {
-		return fmt.Sprintf(
-			"%s://%s/%x",
-			s3.Scheme,
-			s3.Host, k)
+func (s3 *S3) KeyURL(prefix string, k string) string {
+	url := &url.URL{
+		Scheme: s3.Scheme,
+		Host:   s3.Host,
+		Path:   path.Join(s3.Root, prefix, k),
 	}
-
-	return fmt.Sprintf(
-		"%s://%s/%s/%x",
-		s3.Scheme,
-		s3.Host,
-		s3.Prefix, k)
+	return url.String()
 }
 
 //Has attempts to download header info for an S3 k
-func (s3 *S3) Has(k []byte) (has bool, err error) {
-	raw := s3.KeyURL(k)
+func (s3 *S3) Has(prefix string, k string) (has bool, err error) {
+	raw := s3.KeyURL(prefix, k)
 	loc, err := url.Parse(raw)
 	if err != nil {
 		return false, fmt.Errorf("failed to parse '%s' as url: %v", raw, err)
@@ -49,7 +53,7 @@ func (s3 *S3) Has(k []byte) (has bool, err error) {
 	}
 
 	if s3.Creds.AccessKeyID != "" {
-		awsauth.Sign(req, s3.Creds)
+		awsauth.Sign4(req, s3.Creds)
 	}
 
 	resp, err := s3.Client.Do(req)
@@ -69,8 +73,8 @@ func (s3 *S3) Has(k []byte) (has bool, err error) {
 }
 
 //Get attempts to download chunk 'k' from an S3 object store
-func (s3 *S3) Get(k []byte) (resp *http.Response, err error) {
-	raw := s3.KeyURL(k)
+func (s3 *S3) Get(prefix string, k string) (resp *http.Response, err error) {
+	raw := s3.KeyURL(prefix, k)
 	loc, err := url.Parse(raw)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse '%s' as url: %v", raw, err)
@@ -82,7 +86,7 @@ func (s3 *S3) Get(k []byte) (resp *http.Response, err error) {
 	}
 
 	if s3.Creds.AccessKeyID != "" {
-		awsauth.Sign(req, s3.Creds)
+		awsauth.Sign4(req, s3.Creds)
 	}
 
 	resp, err = s3.Client.Do(req)
@@ -94,8 +98,8 @@ func (s3 *S3) Get(k []byte) (resp *http.Response, err error) {
 }
 
 //Put uploads a chunk to an S3 object store under the provided key 'k'
-func (s3 *S3) Put(k []byte, body io.Reader) error {
-	raw := s3.KeyURL(k)
+func (s3 *S3) Put(prefix string, k string, body io.Reader) error {
+	raw := s3.KeyURL(prefix, k)
 	loc, err := url.Parse(raw)
 	if err != nil {
 		return fmt.Errorf("failed to parse '%s' as url: %v", raw, err)
@@ -107,7 +111,7 @@ func (s3 *S3) Put(k []byte, body io.Reader) error {
 	}
 
 	if s3.Creds.AccessKeyID != "" {
-		awsauth.Sign(req, s3.Creds)
+		awsauth.Sign4(req, s3.Creds)
 	}
 
 	resp, err := s3.Client.Do(req)

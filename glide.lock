@@ -1,5 +1,5 @@
-hash: bf45c7790c5e3d56a728551a7f06ec2551dc44a5060be25f4c26ba86cf41267d
-updated: 2016-12-30T16:51:23.888433038+01:00
+hash: 9647cc656a2b7bf026b19e0ebcccfdf595313b6500360f5514900e67b4d53470
+updated: 2017-01-12T11:23:49.975472493+01:00
 imports:
 - name: github.com/armon/go-radix
   version: 4239b77079c7b5d1243b7b4736304ce8ddb6f0f2
@@ -7,6 +7,8 @@ imports:
   version: 675b82c74c0ed12283ee81ba8a534c8982c07b85
 - name: github.com/dchest/safefile
   version: 855e8d98f1852d48dde521e0522408d1fe7e836a
+- name: github.com/hashicorp/go-uuid
+  version: 64130c7a86d732268a38cb04cfbaf0cc987fda98
 - name: github.com/jessevdk/go-flags
   version: 4e64e4a4e2552194cf594243e23aa9baf3b4297e
 - name: github.com/mattn/go-isatty

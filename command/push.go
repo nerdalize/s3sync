@@ -3,13 +3,11 @@ package command
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"os"
 
-	"github.com/nerdalize/s3sync/s3sync"
 	"github.com/jessevdk/go-flags"
 	"github.com/mitchellh/cli"
-	"github.com/restic/chunker"
+	"github.com/nerdalize/s3sync/s3sync"
 )
 
 //PushOpts describes command options
@@ -31,7 +29,7 @@ func PushFactory() func() (cmd cli.Command, err error) {
 		ui:   &cli.BasicUi{Reader: os.Stdin, Writer: os.Stderr},
 	}
 
-	cmd.parser = flags.NewNamedParser("s3sync commit <DIR> <S3>", flags.Default)
+	cmd.parser = flags.NewNamedParser("s3sync push <DIR>", flags.Default)
 	_, err := cmd.parser.AddGroup("options", "options", cmd.opts)
 	if err != nil {
 		panic(err)
@@ -81,38 +79,18 @@ func (cmd *Push) Run(args []string) int {
 
 //DoRun is called by run and allows an error to be returned
 func (cmd *Push) DoRun(args []string) (err error) {
-	if len(args) < 2 {
+	if len(args) < 1 {
 		return fmt.Errorf("not enough arguments, use --help for more information")
 	}
 
-	fi, err := os.Stat(args[0])
-	if err != nil {
-		return fmt.Errorf("failed to inspect '%s' for commit: %v", args[0], err)
-	} else if !fi.IsDir() {
-		return fmt.Errorf("provided path '%s' is not a directory", args[0])
-	}
-
-	s3, err := cmd.opts.CreateS3Client(args[1])
+	s3, err := cmd.opts.CreateS3Client()
 	if err != nil {
 		return err
 	}
 
-	cmd.ui.Info(fmt.Sprintf("pushing to %s", s3.KeyURL(s3sync.ZeroKey[:])))
+	cmd.ui.Info(fmt.Sprintf("pushing to %s", s3.KeyURL(s3sync.PrefixContent, "")))
 
-	doneCh := make(chan error)
-	pr, pw := io.Pipe()
-	cr := chunker.New(pr, chunker.Pol(0x3DA3358B4DC173))
-	go func() {
-		doneCh <- s3sync.Upload(cr, &stdoutkw{}, 64, s3)
-	}()
-
-	err = s3sync.Tar(args[0], pw)
-	if err != nil {
-		return fmt.Errorf("failed to tar '%s': %v", args[0], err)
-	}
-
-	pw.Close()
-	err = <-doneCh
+	err = s3sync.UploadProject(args[0], &stdoutkw{}, 64, s3)
 	if err != nil {
 		return fmt.Errorf("failed to upload: %v", err)
 	}
